@@ -1,6 +1,16 @@
 name: CI
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "*"
+  pull_request:
+    branches:
+      - main
+      - master
 
 jobs:
   build:
@@ -15,13 +25,23 @@ jobs:
           - os: ubuntu-20.04
             target-archs: x86,x86_64
             sdks: sdk2013
+            compiler_cc: clang
+            compiler_cxx: clang++
 
     steps:
       - name: Install Linux packages
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install -yq --no-install-recommends g++-multilib
+          sudo apt install -yq --no-install-recommends g++-multilib ${{ matrix.compiler_cc }}
+
+      - name: Select compiler
+        if: startsWith(runner.os, 'Linux')
+        run: |
+          echo "CC=${{ matrix.compiler_cc }}" >> $GITHUB_ENV
+          echo "CXX=${{ matrix.compiler_cxx }}" >> $GITHUB_ENV
+          ${{ matrix.compiler_cc }} --version
+          ${{ matrix.compiler_cxx }} --version
 
       - name: Set up Python
         uses: actions/setup-python@v2

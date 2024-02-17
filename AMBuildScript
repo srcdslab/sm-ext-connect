@@ -294,14 +294,18 @@ class ExtensionConfig(object):
 
     if builder.options.opt == '1':
       cxx.cflags += [
-            '-O3',
-            '-fexperimental-new-pass-manager',
-            '-mllvm',
-            '-inline-threshold=1000',
-            '-mllvm',
-            '-vectorize-loops',
-            '-ftree-vectorize',
+        '-O3',
+        '-ftree-vectorize',
       ]
+      if cxx.family == 'gcc':
+        cxx.cflags += [
+        ]
+      elif cxx.family == 'clang':
+        cxx.cflags += [
+          '-fexperimental-new-pass-manager',
+          '-mllvm',
+          '-inline-threshold=1000',
+        ]
 
     # Don't omit the frame pointer.
     cxx.cflags += ['-fno-omit-frame-pointer']
