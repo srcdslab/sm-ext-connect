@@ -446,6 +446,7 @@ public:
 	bool clientPreConnectExCalled;
 	int userid;
 	bool timedOut;
+	bool steamIdAssigned;
 
 	ConnectClientStorage()
 	{
@@ -457,6 +458,7 @@ public:
 		this->clientPreConnectExCalled = false;
 		this->userid = -1;
 		this->timedOut = false;
+		this->steamIdAssigned = false;
 	}
 	ConnectClientStorage(netadr_t address, int nProtocol, int iChallenge, int iClientChallenge, int nAuthProtocol, const char *pchName, const char *pchPassword, const char *hashedCDkey, int cdKeyLen)
 	{
@@ -485,6 +487,7 @@ public:
 		this->clientPreConnectExCalled = false;
 		this->userid = -1;
 		this->timedOut = false;
+		this->steamIdAssigned = false;
 	}
 };
 StringHashMap<ConnectClientStorage> g_ConnectClientStorage;
@@ -595,49 +598,56 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient *, netadr_t &, address, 
 	ConnectClientStorage existingStorage;
 	bool existingStorageStored = g_ConnectClientStorage.retrieve(aSteamID, &existingStorage);
 
-	if (existingStorageStored)
+	if (existingStorageStored && existingStorage.pClient && existingStorage.pClient->IsConnected())
 	{
-		g_ConnectClientStorage.remove(aSteamID);
-		EndAuthSession(g_lastClientSteamID);
+		if (g_SvLogging->GetInt())
+			g_pSM->LogMessage(myself, "[TIMEOUT] %s existingStorageStored: %d, Async: %d", aSteamID, existingStorageStored, existingStorage.async);
 
-		// Only wait for async on auto-retry, manual retries should go through the full chain
-		// Don't want to leave the client waiting forever if something breaks in the async forward
-		if (existingStorage.iClientChallenge == iClientChallenge)
-			existingStorage.async = true;
-	}
-
-	if (existingStorageStored && !existingStorage.async)
-	{
-		if (existingStorage.pClient && existingStorage.pClient->IsConnected())
+		INetChannel *netchan = existingStorage.pClient->GetNetChannel();
+		if (!netchan)
+		{
+			existingStorage.timedOut = true;
+		}
+		else
 		{
 			if (g_SvLogging->GetInt())
-				g_pSM->LogMessage(myself, "[TIMEOUT] %s existingStorageStored: %d, Async: %d", aSteamID, existingStorageStored, existingStorage.async);
+				g_pSM->LogMessage(myself, "[TIMEOUT] %s %f", aSteamID, netchan->GetTimeSinceLastReceived());
 
-			INetChannel *netchan = existingStorage.pClient->GetNetChannel();
-			if (!netchan)
-			{
-				existingStorage.timedOut = true;
-			}
-			else
+			if (netchan->GetTimeSinceLastReceived() > g_SvConnectClientTimeout->GetFloat())
 			{
 				if (g_SvLogging->GetInt())
-					g_pSM->LogMessage(myself, "[TIMEOUT] %s %f", aSteamID, netchan->GetTimeSinceLastReceived());
+					g_pSM->LogMessage(myself, "[TIMEOUT] %s timed out!", aSteamID);
 
-				if (netchan->GetTimeSinceLastReceived() > g_SvConnectClientTimeout->GetFloat())
-				{
-					if (g_SvLogging->GetInt())
-						g_pSM->LogMessage(myself, "[TIMEOUT] %s timed out!", aSteamID);
-
-					existingStorage.timedOut = true;
-				}
+				existingStorage.timedOut = true;
 			}
 		}
+	}
 
-		// Disconnect current connection if player has timed out (game crashed, lost connection...)
-		if (existingStorage.timedOut && address.CompareAdr(existingStorage.address, false) && existingStorage.pClient)
+	if (existingStorageStored)
+	{
+		if (existingStorage.steamIdAssigned && existingStorage.GotValidateAuthTicketResponse)
 		{
-			existingStorage.pClient->Disconnect("Same Steam ID connected.");
+			g_ConnectClientStorage.remove(aSteamID);
+			EndAuthSession(g_lastClientSteamID);
 		}
+
+		if (!existingStorage.async && existingStorage.pClient && existingStorage.pClient->IsConnected() && address.CompareAdr(existingStorage.address, false))
+		{
+			// Prevent chained double connection with same challenge (plugin mistake that calls multiple times ClientPreConnectEx)
+			if (existingStorage.iClientChallenge == iClientChallenge)
+			{
+				if (g_SvLogging->GetInt())
+					g_pSM->LogMessage(myself, "[CHAINED CONNECTION] %s existingStorageStored: %d, Async: %d", aSteamID, existingStorageStored, existingStorage.async);
+				return existingStorage.pClient;
+			}
+			// Disconnect current connection if player has timed out (game crashed, lost connection...)
+			else if (existingStorage.timedOut)
+				existingStorage.pClient->Disconnect("Client timed out.");
+		}
+		// Only wait for async on auto-retry, manual retries should go through the full chain
+		// Don't want to leave the client waiting forever if something breaks in the async forward
+		else if (existingStorage.iClientChallenge == iClientChallenge)
+			existingStorage.async = true;
 	}
 
 	ConnectClientStorage clientStorage(address, nProtocol, iChallenge, iClientChallenge, nAuthProtocol, pchName, pchPassword, hashedCDkey, cdKeyLen);
@@ -771,6 +781,11 @@ DETOUR_DECL_MEMBER7(CBaseServer__CheckChallengeType, bool, CBaseClient *, pClien
 		g_bEndAuthSessionOnRejectConnection = false;
 
 		SetSteamID(pClient, g_lastClientSteamID);
+
+		ConnectClientStorage clientStorage;
+		bool storageValid = g_ConnectClientStorage.retrieve(g_lastClientSteamID.Render(), &clientStorage);
+		if (storageValid)
+			clientStorage.steamIdAssigned = true;
 
 		g_bSuppressCheckChallengeType = false;
 		return true;
