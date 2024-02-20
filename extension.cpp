@@ -54,6 +54,7 @@ SMEXT_LINK(&g_Connect);
 ConVar *g_ConnectVersion = CreateConVar("connect_version", SMEXT_CONF_VERSION, FCVAR_REPLICATED|FCVAR_NOTIFY, SMEXT_CONF_DESCRIPTION " Version");
 ConVar *g_SvNoSteam = CreateConVar("sv_connect_nosteam", "1", FCVAR_NOTIFY, "Disable steam validation and force steam authentication.");
 ConVar *g_SvNoSteamAntiSpoof = CreateConVar("sv_connect_nosteam_antispoof", "1", FCVAR_NOTIFY, "0 = Disable, 1 = Prevent steam users to be spoofed by nosteamers, 2 = 1 + reject incoming same nosteam id");
+ConVar *g_SvFixSteamIdPending = CreateConVar("sv_connect_fix_steam_id_pending", "1", FCVAR_NOTIFY, "0 = Disable, 1 = Fix steam id pending");
 ConVar *g_SvLogging = CreateConVar("sv_connect_logging", "0", FCVAR_NOTIFY, "Log connection checks");
 
 // https://github.com/adocwang/steam_ticket_decrypter/blob/fc3ecf2a69193a7a29f5e5bffdbcda5b0b61e347/steam/steam_api_interop.cs#L9655C13-L9655C33
@@ -592,6 +593,21 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient *, netadr_t &, address, 
 
 	ConnectClientStorage existingStorage;
 	bool existingStorageStored = g_ConnectClientStorage.retrieve(aSteamID, &existingStorage);
+
+	if (g_SvFixSteamIdPending->GetInt() && existingStorageStored && existingStorage.iClientChallenge == iClientChallenge && existingStorage.pClient)
+	{
+		if (g_SvLogging->GetInt())
+			g_pSM->LogMessage(myself, "[CHECK] %s steamIdAssigned: %d, GotValidateAuthTicketResponse: %d, async: %d", aSteamID, existingStorage.steamIdAssigned, existingStorage.GotValidateAuthTicketResponse, existingStorage.async);
+
+		if (g_SvLogging->GetInt() && existingStorage.pClient)
+			g_pSM->LogMessage(myself, "[CHECK] %s IsConnected: %d", aSteamID, existingStorage.pClient->IsConnected());
+		else
+			g_pSM->LogMessage(myself, "[CHECK] %s NO existing pClient", aSteamID);
+
+		if (g_SvLogging->GetInt())
+			g_pSM->LogMessage(myself, "[STEAM ID PENDING FIX] %s", aSteamID);
+		return existingStorage.pClient;
+	}
 
 	char rejectReason[255];
 	cell_t retVal = k_OnClientPreConnectEx_Accept;
