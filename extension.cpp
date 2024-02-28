@@ -599,10 +599,8 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient *, netadr_t &, address, 
 		if (g_SvLogging->GetInt())
 			g_pSM->LogMessage(myself, "[CHECK] %s steamIdAssigned: %d, GotValidateAuthTicketResponse: %d, async: %d", aSteamID, existingStorage.steamIdAssigned, existingStorage.GotValidateAuthTicketResponse, existingStorage.async);
 
-		if (g_SvLogging->GetInt() && existingStorage.pClient)
+		if (g_SvLogging->GetInt())
 			g_pSM->LogMessage(myself, "[CHECK] %s IsConnected: %d", aSteamID, existingStorage.pClient->IsConnected());
-		else
-			g_pSM->LogMessage(myself, "[CHECK] %s NO existing pClient", aSteamID);
 
 		if (g_SvLogging->GetInt())
 			g_pSM->LogMessage(myself, "[STEAM ID PENDING FIX] %s", aSteamID);
@@ -668,12 +666,14 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient *, netadr_t &, address, 
 	if (existingStorageStored)
 	{
 		if (g_SvLogging->GetInt())
+		{
 			g_pSM->LogMessage(myself, "[CHECK] %s steamIdAssigned: %d, GotValidateAuthTicketResponse: %d, async: %d", aSteamID, existingStorage.steamIdAssigned, existingStorage.GotValidateAuthTicketResponse, existingStorage.async);
 
-		if (g_SvLogging->GetInt() && existingStorage.pClient)
-			g_pSM->LogMessage(myself, "[CHECK] %s IsConnected: %d", aSteamID, existingStorage.pClient->IsConnected());
-		else
-			g_pSM->LogMessage(myself, "[CHECK] %s NO existing pClient", aSteamID);
+			if (existingStorage.pClient)
+				g_pSM->LogMessage(myself, "[CHECK] %s IsConnected: %d", aSteamID, existingStorage.pClient->IsConnected());
+			else
+				g_pSM->LogMessage(myself, "[CHECK] %s NO existing pClient", aSteamID);
+		}
 
 		if (g_SvNoSteamAntiSpoof->GetInt())
 		{
@@ -982,12 +982,12 @@ cell_t SteamClientAuthenticated(IPluginContext *pContext, const cell_t *params)
 	ConnectClientStorage clientStorage;
 	if(g_ConnectClientStorage.retrieve(pSteamID, &clientStorage))
 	{
-		if (g_SvLogging->GetInt())
+		if (g_SvLogging->GetInt() > 1)
 			g_pSM->LogMessage(myself, "%s SteamClientAuthenticated: %d", pSteamID, clientStorage.SteamLegal);
 
 		return clientStorage.SteamLegal;
 	}
-	if (g_SvLogging->GetInt())
+	if (g_SvLogging->GetInt() > 1)
 		g_pSM->LogMessage(myself, "%s SteamClientAuthenticated: FALSE!", pSteamID);
 
 	return false;
@@ -1001,12 +1001,12 @@ cell_t SteamClientGotValidateAuthTicketResponse(IPluginContext *pContext, const 
 	ConnectClientStorage clientStorage;
 	if (g_ConnectClientStorage.retrieve(pSteamID, &clientStorage))
 	{
-		if (g_SvLogging->GetInt())
+		if (g_SvLogging->GetInt() > 1)
 			g_pSM->LogMessage(myself, "%s SteamClientGotValidateAuthTicketResponse: %d", pSteamID, clientStorage.GotValidateAuthTicketResponse);
 
 		return clientStorage.GotValidateAuthTicketResponse;
 	}
-	if (g_SvLogging->GetInt())
+	if (g_SvLogging->GetInt() > 1)
 		g_pSM->LogMessage(myself, "%s SteamClientGotValidateAuthTicketResponse: FALSE!", pSteamID);
 
 	return false;
