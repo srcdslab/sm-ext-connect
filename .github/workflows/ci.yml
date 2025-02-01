@@ -2,10 +2,13 @@ name: Extension builder
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
+    tags:
+      - "*"
   pull_request:
-    branches: [ master ]
-
+    branches:
+      - master
 
 jobs:
   build:
@@ -148,8 +151,23 @@ jobs:
           zip -r "${{ env.ZIP_FILENAME }}" .
           cp "${{ env.ZIP_FILENAME }}" "${{ matrix.os }}_${{ matrix.cc }}_${{ env.ZIP_FILENAME }}"
 
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v4.3.2
+        with:
+          # Artifact name
+          name: ${{ matrix.os }}_${{ matrix.cc }}_${{ env.ZIP_FILENAME }}
+          # optional, default is artifact
+          # A file, directory or wildcard pattern that describes what to upload
+          path: ${{ github.workspace }}/extension/build/package/${{ matrix.os }}_${{ matrix.cc }}_${{ env.ZIP_FILENAME }}
+          # The desired behavior if no files are found using the provided path.
+          if-no-files-found: error
+          # Duration after which artifact will expire in days. 0 means using default retention.
+          retention-days: 14
+
       - name: Upload release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: >
+          github.event_name == 'push' && github.ref == 'refs/heads/master' &&
+          secrets.USERNAME != '' && secrets.PASSWORD != ''
         shell: bash
         working-directory: extension/build/package
         run: |
@@ -163,15 +181,19 @@ jobs:
           fi
           echo "Upload successful!"
 
-      - name: Upload a Build Artifact
-        uses: actions/upload-artifact@v4.3.2
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Release
+        uses: svenstaro/upload-release-action@v2
         with:
-          # Artifact name
-          name: ${{ matrix.os }}_${{ matrix.cc }}_${{ env.ZIP_FILENAME }}
-          # optional, default is artifact
-          # A file, directory or wildcard pattern that describes what to upload
-          path: ${{ github.workspace }}/extension/build/package/${{ matrix.os }}_${{ matrix.cc }}_${{ env.ZIP_FILENAME }}
-          # The desired behavior if no files are found using the provided path.
-          if-no-files-found: error
-          # Duration after which artifact will expire in days. 0 means using default retention.
-          retention-days: 14
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: '*.zip'
+          tag: ${{ github.ref }}
+          file_glob: true
