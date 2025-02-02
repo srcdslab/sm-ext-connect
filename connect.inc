@@ -26,8 +26,9 @@ enum EAuthSessionResponse
  *
  * @param steamID                         Client's Steam ID in STEAM_X:Y:Z format
  * @param eAuthSessionResponse            The response code from Steam
+ * @return                                Change authentication session response
  */
-forward void OnValidateAuthTicketResponse(const char[] steamID, EAuthSessionResponse eAuthSessionResponse);
+forward EAuthSessionResponse OnValidateAuthTicketResponse(const char[] steamID, EAuthSessionResponse eAuthSessionResponse);
 
 /**
  * Called when a client attempts to connect to the server.

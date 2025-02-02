@@ -252,7 +252,10 @@ DETOUR_DECL_MEMBER1(CSteam3Server__OnValidateAuthTicketResponse, int, ValidateAu
 {
 	g_pOnValidateAuthTicketResponse->PushString(pResponse->m_SteamID.Render());
 	g_pOnValidateAuthTicketResponse->PushCell(pResponse->m_eAuthSessionResponse);
-	g_pOnValidateAuthTicketResponse->Execute();
+
+	cell_t retVal = pResponse->m_eAuthSessionResponse;
+	g_pOnValidateAuthTicketResponse->Execute(&retVal);
+	pResponse->m_eAuthSessionResponse = (EAuthSessionResponse)retVal;
 
 	return DETOUR_MEMBER_CALL(CSteam3Server__OnValidateAuthTicketResponse)(pResponse);
 }
