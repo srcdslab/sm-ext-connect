@@ -30,6 +30,25 @@ enum EAuthSessionResponse
  */
 forward EAuthSessionResponse OnValidateAuthTicketResponse(const char[] steamID, EAuthSessionResponse eAuthSessionResponse);
 
+enum EBeginAuthSessionResult
+{
+	k_EBeginAuthSessionResultOK = 0,				// Ticket is valid for this game and this steamID.
+	k_EBeginAuthSessionResultInvalidTicket = 1,		// Ticket is not valid.
+	k_EBeginAuthSessionResultDuplicateRequest = 2,	// A ticket has already been submitted for this steamID
+	k_EBeginAuthSessionResultInvalidVersion = 3,	// Ticket is from an incompatible interface version
+	k_EBeginAuthSessionResultGameMismatch = 4,		// Ticket is not for this game
+	k_EBeginAuthSessionResultExpiredTicket = 5,		// Ticket has expired
+};
+
+/**
+ * Called when a response to a begin authentication session request is returned
+ *
+ * @param steamID                         Client's Steam ID in STEAM_X:Y:Z format
+ * @param eBeginAuthSessionResult         The result code
+ * @return                                Change begin authentication session result
+ */
+forward EBeginAuthSessionResult OnBeginAuthSessionResult(const char[] steamID, EBeginAuthSessionResult eBeginAuthSessionResult);
+
 /**
  * Called when a client attempts to connect to the server.
  *
