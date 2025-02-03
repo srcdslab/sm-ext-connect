@@ -61,6 +61,16 @@ forward EBeginAuthSessionResult OnBeginAuthSessionResult(const char[] steamID, E
  */
 forward bool OnClientPreConnectEx(const char[] name, char password[255], const char[] ip, const char[] steamID, char rejectReason[255]);
 
+/**
+ * Call to trigger the validate auth ticket response chain
+ *
+ * @param steamID               Client's Steam ID64
+ * @param ownerSteamID          Client's owner Steam ID64
+ * @param eAuthSessionResponse  The response code from Steam
+ * @return
+ */
+native void ValidateAuthTicketResponse(const char[] steamID, EAuthSessionResponse eAuthSessionResponse, const char[] ownerSteamID);
+
 public Extension __ext_Connect = 
 {
 	name = "Connect",
@@ -76,3 +86,10 @@ public Extension __ext_Connect =
 	required = 0,
 #endif
 }
+
+#if !defined REQUIRE_EXTENSIONS
+public void __ext_connect_SetNTVOptional()
+{
+	MarkNativeAsOptional("ValidateAuthTicketResponse");
+}
+#endif
