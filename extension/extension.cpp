@@ -517,3 +517,41 @@ bool Connect::RegisterConCommandBase(ConCommandBase *pCommand)
 
 	return true;
 }
+
+cell_t ValidateAuthTicketResponse(IPluginContext *pContext, const cell_t *params)
+{
+	char *pSteamID;
+	pContext->LocalToString(params[1], &pSteamID);
+
+	cell_t retVal = params[2];
+
+	char *pOwnerSteamID;
+	pContext->LocalToString(params[3], &pOwnerSteamID);
+
+	uint64 ullSteamID = strtoull(pSteamID, NULL, 10);
+	uint64 ullOwnerSteamID = strtoull(pOwnerSteamID, NULL, 10);
+
+	CSteamID steamID = CSteamID(ullSteamID);
+	CSteamID ownerSteamID = CSteamID(ullOwnerSteamID);
+
+	g_pSM->LogMessage(myself, "ValidateAuthTicketResponse %s %s %s %s", pSteamID, pOwnerSteamID, steamID.Render(), ownerSteamID.Render());
+
+	ValidateAuthTicketResponse_t response;
+	response.m_SteamID = steamID;
+	response.m_eAuthSessionResponse = (EAuthSessionResponse)retVal;
+	response.m_OwnerSteamID = ownerSteamID;
+	DETOUR_MEMBER_MCALL_CALLBACK(CSteam3Server__OnValidateAuthTicketResponse, g_pSteam3Server)(&response);
+
+	return 0;
+}
+
+const sp_nativeinfo_t myNatives[] =
+{
+	{ "ValidateAuthTicketResponse", ValidateAuthTicketResponse },
+	{ NULL, NULL }
+};
+
+void Connect::SDK_OnAllLoaded()
+{
+	sharesys->AddNatives(myself, myNatives);
+}
