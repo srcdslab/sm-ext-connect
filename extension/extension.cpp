@@ -45,7 +45,7 @@ typedef enum EAuthProtocol
 	k_EAuthProtocolSteam = 3,
 } EAuthProtocol;
 
-#if SOURCE_ENGINE < SE_SDK2013 || SOURCE_ENGINE == SE_TF2 || SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
+#if SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
 typedef enum EBeginAuthSessionResult
 {
 	k_EBeginAuthSessionResultOK = 0,				// Ticket is valid for this game and this steamID.
