@@ -41,6 +41,7 @@ class CBaseClient;
 
 class CBaseServer;
 
+#if SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
 // Callback values for callback ValidateAuthTicketResponse_t which is a response to BeginAuthSession
 enum EAuthSessionResponse
 {
@@ -55,6 +56,7 @@ enum EAuthSessionResponse
 	k_EAuthSessionResponseAuthTicketInvalid = 8,			// This ticket is not from a user instance currently connected to steam.
 	k_EAuthSessionResponsePublisherIssuedBan = 9,			// The user is banned for this game. The ban came via the web api and not VAC
 };
+#endif
 
 struct ValidateAuthTicketResponse_t
 {
@@ -71,7 +73,7 @@ typedef enum EAuthProtocol
 	k_EAuthProtocolSteam = 3,
 } EAuthProtocol;
 
-#if SOURCE_ENGINE < SE_SDK2013 || SOURCE_ENGINE == SE_TF2 || SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
+#if SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
 typedef enum EBeginAuthSessionResult
 {
 	k_EBeginAuthSessionResultOK = 0,				// Ticket is valid for this game and this steamID.
