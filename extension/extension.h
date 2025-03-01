@@ -106,6 +106,11 @@ public: //IConCommandBaseAccessor
 	bool RegisterConCommandBase(ConCommandBase *pCommand);
 };
 
+#define DETOUR_STATIC_MCALL_CALLBACK(name) \
+	((&name))
+#define DETOUR_STATIC_MCALL_ORIGINAL(name) \
+	((name##_Actual))
+
 #define DETOUR_MEMBER_MCALL_CALLBACK(name, classptr) \
 	((name##Class *)classptr->*(&name##Class::name))
 #define DETOUR_MEMBER_MCALL_ORIGINAL(name, classptr) \

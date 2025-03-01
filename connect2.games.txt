@@ -73,6 +73,18 @@
 				"windows"       "\x55\x8B\xEC\x81\xEC\x04\x05\x00\x00\x56\x6A\xFF"
 			}
 
+			"NET_CheckCleanupFakeIPConnection"
+			{
+				"library"		"engine"
+				"linux"			"@_Z32NET_CheckCleanupFakeIPConnectioniRK8netadr_s"
+			}
+
+			"NET_SendPacket"
+			{
+				"library"		"engine"
+				"linux"			"@_Z14NET_SendPacketP11INetChanneliRK8netadr_sPKhiP8bf_writeb"
+			}
+
 			"CBaseClient__SetSteamID"
 			{
 				"library"       "engine"

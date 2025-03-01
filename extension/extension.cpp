@@ -22,6 +22,9 @@
 
 #include "steam/steamclientpublic.h"
 #include "steam/isteamclient.h"
+#include "tier0/platform.h"
+#include "tier1/netadr.h"
+#include <inetchannel.h>
 #include <string>
 
 Connect g_connect;
@@ -40,6 +43,23 @@ class IClient;
 class CBaseClient;
 
 class CBaseServer;
+
+#define CONNECTIONLESS_HEADER			0xFFFFFFFF
+#define S2C_CONNREJECT			'9'
+#define MAX_ROUTABLE_PAYLOAD		1260	// Matches x360 size
+
+enum
+{
+	NS_CLIENT = 0,	// client socket
+	NS_SERVER,	// server socket
+	NS_HLTV,
+	NS_MATCHMAKING,
+	NS_SYSTEMLINK,
+#ifdef LINUX
+	NS_SVLAN,	// LAN udp port for Linux. See NET_OpenSockets for info.
+#endif
+	MAX_SOCKETS
+};
 
 #if SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
 // Callback values for callback ValidateAuthTicketResponse_t which is a response to BeginAuthSession
@@ -85,23 +105,6 @@ typedef enum EBeginAuthSessionResult
 } EBeginAuthSessionResult;
 #endif
 
-typedef struct netadr_s
-{
-private:
-	typedef enum
-	{ 
-		NA_NULL = 0,
-		NA_LOOPBACK,
-		NA_BROADCAST,
-		NA_IP,
-	} netadrtype_t;
-
-public:
-	netadrtype_t	type;
-	unsigned char	ip[4];
-	unsigned short	port;
-} netadr_t;
-
 const char *CSteamID::Render() const
 {
 	static char szSteamID[64];
@@ -141,6 +144,10 @@ typedef void (__fastcall *SetSteamIDFunc)(CBaseClient *, void *, const CSteamID 
 
 CDetour* detourCBaseServer__ConnectClient = nullptr;
 CDetour* detourCBaseServer__RejectConnection = nullptr;
+#if SOURCE_ENGINE != SE_LEFT4DEAD && SOURCE_ENGINE != SE_LEFT4DEAD2
+CDetour* detourNET_CheckCleanupFakeIPConnection = nullptr;
+#endif
+CDetour* detourNET_SendPacket = nullptr;
 CDetour* detourCSteam3Server__OnValidateAuthTicketResponse = NULL;
 
 bool g_bEndAuthSessionOnRejectConnection = false;
@@ -268,7 +275,19 @@ DETOUR_DECL_MEMBER1(CSteam3Server__OnValidateAuthTicketResponse, int, ValidateAu
 	return DETOUR_MEMBER_CALL(CSteam3Server__OnValidateAuthTicketResponse)(pResponse);
 }
 
-DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient*, netadr_t&, address, int, nProtocol, int, iChallenge, int, iClientChallenge, int, nAuthProtocol, const char *, pchName, const char *, pchPassword, const char *, pCookie, int, cbCookie)
+DETOUR_DECL_STATIC7(NET_SendPacket, int, INetChannel *, chan, int, sock,  const netadr_t &, to, const unsigned char *, data, int, length, bf_write *, pVoicePayload, bool, bUseCompression)
+{
+	return DETOUR_STATIC_CALL(NET_SendPacket)(chan, sock, to, data, length, pVoicePayload, bUseCompression);
+}
+
+#if SOURCE_ENGINE != SE_LEFT4DEAD && SOURCE_ENGINE != SE_LEFT4DEAD2
+DETOUR_DECL_STATIC2(NET_CheckCleanupFakeIPConnection, void, int, iClientChallenge, const netadr_t &, address)
+{
+	return DETOUR_STATIC_CALL(NET_CheckCleanupFakeIPConnection)(iClientChallenge, address);
+}
+#endif
+
+DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient*, const netadr_t &, address, int, nProtocol, int, iChallenge, int, iClientChallenge, int, nAuthProtocol, const char *, pchName, const char *, pchPassword, const char *, pCookie, int, cbCookie)
 {
 	if (nAuthProtocol != k_EAuthProtocolSteam)
 	{
@@ -297,6 +316,10 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient*, netadr_t&, address, in
 	g_lastcbAuthTicket = cbTicket;
 	g_lastAuthTicket = pvTicket;
 
+#if SOURCE_ENGINE != SE_LEFT4DEAD && SOURCE_ENGINE != SE_LEFT4DEAD2
+	g_bSuppressBeginAuthSession = true;
+#endif
+
 	// Validate steam ticket
 	EBeginAuthSessionResult result = BeginAuthSession(pvTicket, cbTicket, g_lastClientSteamID);
 	if (result != k_EBeginAuthSessionResultOK)
@@ -324,13 +347,15 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient*, netadr_t&, address, in
 
 	pchPassword = passwordBuffer;
 
+#if SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
 	g_bSuppressBeginAuthSession = true;
+#endif
 	auto client = DETOUR_MEMBER_CALL(CBaseServer__ConnectClient)(address, nProtocol, iChallenge, iClientChallenge, nAuthProtocol, pchName, pchPassword, pCookie, cbCookie);
 	g_bSuppressBeginAuthSession = false;
 	return client;
 }
 
-DETOUR_DECL_MEMBER3(CBaseServer__RejectConnection, void, netadr_t &, address, int, iClientChallenge, const char *, pchReason)
+DETOUR_DECL_MEMBER3(CBaseServer__RejectConnection, void, const netadr_t &, address, int, iClientChallenge, const char *, pchReason)
 {
 	if (g_bEndAuthSessionOnRejectConnection)
 	{
@@ -338,7 +363,21 @@ DETOUR_DECL_MEMBER3(CBaseServer__RejectConnection, void, netadr_t &, address, in
 		g_bEndAuthSessionOnRejectConnection = false;
 	}
 
-	return DETOUR_MEMBER_CALL(CBaseServer__RejectConnection)(address, iClientChallenge, pchReason);
+#if SOURCE_ENGINE == SE_LEFT4DEAD || SOURCE_ENGINE == SE_LEFT4DEAD2
+	DETOUR_MEMBER_CALL(CBaseServer__RejectConnection)(address, iClientChallenge, pchReason);
+#else
+	ALIGN4 char		msg_buffer[MAX_ROUTABLE_PAYLOAD] ALIGN4_POST;
+	bf_write	msg( msg_buffer, sizeof(msg_buffer) );
+
+	msg.WriteLong( CONNECTIONLESS_HEADER );
+	msg.WriteByte( S2C_CONNREJECT );
+	msg.WriteLong( iClientChallenge );
+	msg.WriteString( pchReason );
+
+	DETOUR_STATIC_MCALL_CALLBACK(NET_SendPacket)(NULL, NS_SERVER, address, msg.GetData(), msg.GetNumBytesWritten(), NULL, false);
+	DETOUR_STATIC_MCALL_CALLBACK(NET_CheckCleanupFakeIPConnection)(NS_SERVER, address);
+#endif
+	return;
 }
 
 bool Connect::SDK_OnLoad(char *error, size_t maxlen, bool late)
@@ -451,6 +490,24 @@ bool Connect::SDK_OnLoad(char *error, size_t maxlen, bool late)
 	}
 	detourCBaseServer__RejectConnection->EnableDetour();
 
+#if SOURCE_ENGINE != SE_LEFT4DEAD && SOURCE_ENGINE != SE_LEFT4DEAD2
+	detourNET_CheckCleanupFakeIPConnection = DETOUR_CREATE_STATIC(NET_CheckCleanupFakeIPConnection, "NET_CheckCleanupFakeIPConnection");
+	if (detourNET_CheckCleanupFakeIPConnection == nullptr)
+	{
+		snprintf(error, maxlen, "Failed to create NET_CheckCleanupFakeIPConnection detour.\n");
+		return false;
+	}
+	detourNET_CheckCleanupFakeIPConnection->EnableDetour();
+#endif
+
+	detourNET_SendPacket = DETOUR_CREATE_STATIC(NET_SendPacket, "NET_SendPacket");
+	if (detourNET_SendPacket == nullptr)
+	{
+		snprintf(error, maxlen, "Failed to create NET_SendPacket detour.\n");
+		return false;
+	}
+	detourNET_SendPacket->EnableDetour();
+
 	detourCSteam3Server__OnValidateAuthTicketResponse = DETOUR_CREATE_MEMBER(CSteam3Server__OnValidateAuthTicketResponse, "CSteam3Server__OnValidateAuthTicketResponse");
 	if(!detourCSteam3Server__OnValidateAuthTicketResponse)
 	{
@@ -499,6 +556,20 @@ bool Connect::SDK_OnMetamodUnload(char *error, size_t maxlen)
 		detourCBaseServer__RejectConnection->DisableDetour();
 		delete detourCBaseServer__RejectConnection;
 	}
+
+	if (detourNET_SendPacket)
+	{
+		detourNET_SendPacket->DisableDetour();
+		delete detourNET_SendPacket;
+	}
+
+#if SOURCE_ENGINE != SE_LEFT4DEAD && SOURCE_ENGINE != SE_LEFT4DEAD2
+	if (detourNET_CheckCleanupFakeIPConnection)
+	{
+		detourNET_CheckCleanupFakeIPConnection->DisableDetour();
+		delete detourNET_CheckCleanupFakeIPConnection;
+	}
+#endif
 
 	if (detourCSteam3Server__OnValidateAuthTicketResponse)
 	{
