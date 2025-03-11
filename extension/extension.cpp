@@ -319,6 +319,10 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient*, netadr_t&, address, in
 	EBeginAuthSessionResult result = BeginAuthSession(pvTicket, cbTicket, g_lastClientSteamID);
 	if (result != k_EBeginAuthSessionResultOK)
 	{
+		// Explicitly end the auth session before rejecting to prevent memory leak
+		EndAuthSession(g_lastClientSteamID);
+		g_bEndAuthSessionOnRejectConnection = false;
+		
 		RejectConnection(address, iClientChallenge, "#GameUI_ServerRejectSteam");
 		return NULL;
 	}
@@ -336,6 +340,9 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient*, netadr_t&, address, in
 
 	if (retVal == 0)
 	{
+		EndAuthSession(g_lastClientSteamID);
+		g_bEndAuthSessionOnRejectConnection = false;
+		
 		RejectConnection(address, iClientChallenge, rejectReason);
 		return NULL;
 	}
@@ -345,6 +352,14 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient*, netadr_t&, address, in
 	g_bSuppressBeginAuthSession = true;
 	auto client = DETOUR_MEMBER_CALL(CBaseServer__ConnectClient)(address, nProtocol, iChallenge, iClientChallenge, nAuthProtocol, pchName, pchPassword, pCookie, cbCookie);
 	g_bSuppressBeginAuthSession = false;
+	
+	// If client connection failed, ensure we clean up the auth session
+	if (client == NULL)
+	{
+		EndAuthSession(g_lastClientSteamID);
+		g_bEndAuthSessionOnRejectConnection = false;
+	}
+	
 	return client;
 }
 
