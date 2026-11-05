@@ -505,8 +505,8 @@ bool Connect::SDK_OnLoad(char *error, size_t maxlen, bool late)
 	}
 	detourCSteam3Server__OnValidateAuthTicketResponse->EnableDetour();
 
-	g_pOnValidateAuthTicketResponse = g_pForwards->CreateForward("OnValidateAuthTicketResponse", ET_Ignore, 2, NULL, Param_String, Param_Cell);
-	g_pOnBeginAuthSessionResult = g_pForwards->CreateForward("OnBeginAuthSessionResult", ET_Ignore, 2, NULL, Param_String, Param_Cell);
+	g_pOnValidateAuthTicketResponse = g_pForwards->CreateForward("OnValidateAuthTicketResponse", ET_LowEvent, 2, NULL, Param_String, Param_Cell);
+	g_pOnBeginAuthSessionResult = g_pForwards->CreateForward("OnBeginAuthSessionResult", ET_LowEvent, 2, NULL, Param_String, Param_Cell);
 
 	g_pConnectForward = g_pForwards->CreateForward("OnClientPreConnectEx", ET_LowEvent, 5, NULL, Param_String, Param_String, Param_String, Param_String, Param_String);
 

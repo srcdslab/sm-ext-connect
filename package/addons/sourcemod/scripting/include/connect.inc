@@ -26,7 +26,11 @@ enum EAuthSessionResponse
  *
  * @param steamID                         Client's Steam ID in STEAM_X:Y:Z format
  * @param eAuthSessionResponse            The response code from Steam
- * @return                                Change authentication session response
+ * @return                                Response passed on to the server. Any response other than
+ *                                        k_EAuthSessionResponseOK makes the server drop the client.
+ *                                        Return eAuthSessionResponse to keep it. When several plugins
+ *                                        implement this forward, the lowest value wins, so
+ *                                        k_EAuthSessionResponseOK wins over any failure.
  */
 forward EAuthSessionResponse OnValidateAuthTicketResponse(const char[] steamID, EAuthSessionResponse eAuthSessionResponse);
 
@@ -45,7 +49,11 @@ enum EBeginAuthSessionResult
  *
  * @param steamID                         Client's Steam ID in STEAM_X:Y:Z format
  * @param eBeginAuthSessionResult         The result code
- * @return                                Change begin authentication session result
+ * @return                                Result used by the extension. Any result other than
+ *                                        k_EBeginAuthSessionResultOK rejects the connection.
+ *                                        Return eBeginAuthSessionResult to keep it. When several plugins
+ *                                        implement this forward, the lowest value wins, so
+ *                                        k_EBeginAuthSessionResultOK wins over any failure.
  */
 forward EBeginAuthSessionResult OnBeginAuthSessionResult(const char[] steamID, EBeginAuthSessionResult eBeginAuthSessionResult);
 
