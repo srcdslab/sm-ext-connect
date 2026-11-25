@@ -323,7 +323,9 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient*, netadr_t&, address, in
 		return NULL;
 	}
 
-	char rejectReason[255];
+	// Copied to the plugins and sent back to the client as is: a plugin that returns
+	// false without writing a reason must not send stack garbage.
+	char rejectReason[255] = "";
 
 	g_pConnectForward->PushString(pchName);
 	g_pConnectForward->PushStringEx(passwordBuffer, 255, SM_PARAM_STRING_UTF8 | SM_PARAM_STRING_COPY, SM_PARAM_COPYBACK);
