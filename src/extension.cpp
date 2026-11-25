@@ -345,6 +345,12 @@ DETOUR_DECL_MEMBER9(CBaseServer__ConnectClient, IClient*, netadr_t&, address, in
 	g_bSuppressBeginAuthSession = true;
 	auto client = DETOUR_MEMBER_CALL(CBaseServer__ConnectClient)(address, nProtocol, iChallenge, iClientChallenge, nAuthProtocol, pchName, pchPassword, pCookie, cbCookie);
 	g_bSuppressBeginAuthSession = false;
+
+	// The engine may have rejected this client (bad challenge, server full...) and ended
+	// its session already. Either way the flag must not outlive this call: the next
+	// RejectConnection (a SourceTV client, a connect with a short cookie, any other
+	// player) would end the auth session of this client, still playing on the server.
+	g_bEndAuthSessionOnRejectConnection = false;
 	return client;
 }
 
